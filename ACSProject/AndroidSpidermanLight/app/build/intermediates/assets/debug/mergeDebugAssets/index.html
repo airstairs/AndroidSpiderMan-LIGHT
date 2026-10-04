@@ -1,0 +1,1593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Open World Web-Slinger</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
+    #ui {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+      pointer-events: none;
+    }
+    .hud {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      color: #fff;
+      font-size: 18px;
+      font-weight: 800;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.8), 0 0 12px rgba(164, 198, 57, 0.8);
+    }
+    .hud span {
+      color: #a4c639;
+    }
+    .mph-gauge {
+      font-size: 26px;
+      color: #a4c639;
+      margin-bottom: 5px;
+    }
+    #minimap-container {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      width: 140px;
+      height: 140px;
+      border: 2px solid #ff0033;
+      border-radius: 50%;
+      overflow: hidden;
+      box-shadow: 0 0 15px rgba(255, 0, 51, 0.4);
+      background: rgba(10, 15, 25, 0.85);
+      pointer-events: auto;
+    }
+    #minimap-canvas {
+      width: 100%;
+      height: 100%;
+    }
+    
+    /* Top-Left Action Buttons (Pause & Daylight) */
+    .top-controls {
+      position: absolute;
+      top: 150px;
+      left: 20px;
+      display: flex;
+      gap: 10px;
+      pointer-events: auto;
+    }
+
+    .top-btn {
+      width: 50px;
+      height: 50px;
+      border-radius: 25px;
+      background: rgba(10, 15, 25, 0.85);
+      border: 2px solid #ff0033;
+      color: #ff0033;
+      font-weight: 800;
+      font-size: 11px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      pointer-events: auto;
+      backdrop-filter: blur(4px);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
+    .top-btn:active {
+      background: #ff0033;
+      color: #fff;
+    }
+    #daylight-toggle-btn {
+      border-color: #ffaa00;
+      color: #ffaa00;
+    }
+
+    .joystick-zone {
+      position: absolute;
+      bottom: 30px;
+      left: 30px;
+      width: 120px;
+      height: 120px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 2px solid rgba(255, 0, 51, 0.5);
+      border-radius: 60px;
+      pointer-events: auto;
+      backdrop-filter: blur(4px);
+    }
+    .joystick-knob {
+      position: absolute;
+      top: 35px;
+      left: 35px;
+      width: 50px;
+      height: 50px;
+      background: #ff0033;
+      border-radius: 25px;
+      box-shadow: 0 0 15px rgba(255, 0, 51, 0.6);
+      pointer-events: none;
+    }
+    .btn-container {
+      position: absolute;
+      bottom: 30px;
+      right: 30px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      pointer-events: auto;
+    }
+    .action-btn {
+      width: 75px;
+      height: 75px;
+      border-radius: 38px;
+      background: rgba(10, 15, 25, 0.85);
+      border: 2px solid #ff0033;
+      color: #ff0033;
+      font-weight: 800;
+      font-size: 14px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+      backdrop-filter: blur(4px);
+    }
+    .action-btn:active, .action-btn.active {
+      background: #ff0033;
+      color: #fff;
+      box-shadow: 0 0 20px rgba(255, 0, 51, 0.8);
+    }
+    #web-btn {
+      border-color: #0055ff;
+      color: #0055ff;
+    }
+    #web-btn.active {
+      background: #0055ff;
+      color: #fff;
+      box-shadow: 0 0 20px rgba(0, 85, 255, 0.8);
+    }
+    #climb-btn { display: none; border-color: #ff9800; color: #ff9800; }
+    #climb-btn.active { background: #ff9800; color: #000; }
+
+    /* OVERLAYS */
+    .overlay-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+      pointer-events: auto;
+      backdrop-filter: blur(6px);
+    }
+    #wasted-overlay { background: rgba(20, 0, 0, 0.85); }
+    #victory-overlay { background: rgba(0, 10, 30, 0.85); }
+    #pause-overlay { background: rgba(10, 15, 25, 0.85); }
+
+    .overlay-title {
+      font-size: 54px;
+      font-weight: 900;
+      letter-spacing: 6px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    #wasted-title {
+      color: #ff0033;
+      text-shadow: 0 0 20px rgba(255, 0, 51, 0.8), 0 4px 10px #000;
+      animation: pulseAnim 1.5s infinite alternate;
+    }
+    #victory-title {
+      color: #0055ff;
+      text-shadow: 0 0 20px rgba(0, 85, 255, 0.8), 0 4px 10px #000;
+      animation: pulseAnim 1.5s infinite alternate;
+    }
+    #pause-title {
+      color: #ff0033;
+      text-shadow: 0 0 20px rgba(255, 0, 51, 0.8), 0 4px 10px #000;
+    }
+    @keyframes pulseAnim {
+      0% { transform: scale(1); }
+      100% { transform: scale(1.08); }
+    }
+
+    .settings-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 25px;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 15px 25px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 0, 51, 0.3);
+    }
+    .settings-label {
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      letter-spacing: 1px;
+    }
+    .settings-input-row {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+    input[type=range] {
+      accent-color: #ff0033;
+      width: 200px;
+      height: 6px;
+    }
+    #apk-count-display {
+      color: #ff0033;
+      font-size: 20px;
+      font-weight: 800;
+      min-width: 40px;
+      text-align: center;
+    }
+
+    .menu-btn-row {
+      display: flex;
+      gap: 15px;
+    }
+    .overlay-btn {
+      padding: 14px 30px;
+      font-size: 18px;
+      font-weight: 800;
+      color: #fff;
+      border: 2px solid #ffffff;
+      border-radius: 30px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    }
+    #restart-btn {
+      background: #ff0033;
+      border-color: #ff0033;
+      box-shadow: 0 0 25px rgba(255, 0, 51, 0.8);
+    }
+    #victory-restart-btn {
+      background: #0055ff;
+      color: #fff;
+      border-color: #0055ff;
+      box-shadow: 0 0 25px rgba(0, 85, 255, 0.8);
+    }
+    #save-btn {
+      background: #ff0033;
+      color: #fff;
+      border-color: #ff0033;
+      box-shadow: 0 0 20px rgba(255, 0, 51, 0.6);
+    }
+    #reset-settings-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: #fff;
+    }
+  </style>
+  <script src="three.min.js"></script>
+  <script src="cannon.min.js"></script>
+</head>
+<body>
+
+  <div id="canvas-container"></div>
+
+  <div id="ui">
+    <div class="hud">
+      <div class="mph-gauge"><span id="mph-val">0</span> MPH</div>
+      ALTITUDE: <span id="alt-val">0</span>m<br>
+      MODE: <span id="mode-val">ROOFTOP</span><br>
+      APKS: <span id="apk-val">0/0</span>
+    </div>
+
+    <div class="top-controls">
+      <div id="pause-open-btn" class="top-btn">PAUSE</div>
+      <div id="daylight-toggle-btn" class="top-btn">DAY</div>
+    </div>
+
+    <div id="minimap-container">
+      <canvas id="minimap-canvas" width="140" height="140"></canvas>
+    </div>
+
+    <div id="left-joystick-zone" class="joystick-zone">
+      <div id="left-joystick-knob" class="joystick-knob"></div>
+    </div>
+
+    <div class="btn-container">
+      <div id="web-btn" class="action-btn">WEB</div>
+      <div id="climb-btn" class="action-btn">WALL<br>CLIMB</div>
+      <div id="jump-btn" class="action-btn">JUMP</div>
+    </div>
+  </div>
+
+  <div id="wasted-overlay" class="overlay-screen">
+    <div id="wasted-title" class="overlay-title">WASTED</div>
+    <div id="restart-btn" class="overlay-btn">RESTART</div>
+  </div>
+
+  <div id="victory-overlay" class="overlay-screen">
+    <div id="victory-title" class="overlay-title">CITY SAVED</div>
+    <div id="victory-restart-btn" class="overlay-btn">PLAY AGAIN</div>
+  </div>
+
+  <div id="pause-overlay" class="overlay-screen">
+    <div id="pause-title" class="overlay-title">PAUSED</div>
+    
+    <div class="settings-group">
+      <div class="settings-label">APK ORB COLLECTIBLES</div>
+      <div class="settings-input-row">
+        <input type="range" id="apk-slider" min="1" max="60" value="30" step="1">
+        <span id="apk-count-display">30</span>
+      </div>
+    </div>
+
+    <div class="menu-btn-row">
+      <div id="reset-settings-btn" class="overlay-btn">RESET</div>
+      <div id="save-btn" class="overlay-btn">SAVE & RESUME</div>
+    </div>
+  </div>
+
+  <script>
+    const container = document.getElementById('canvas-container');
+    const mphEl = document.getElementById('mph-val');
+    const altEl = document.getElementById('alt-val');
+    const modeEl = document.getElementById('mode-val');
+    const apkEl = document.getElementById('apk-val');
+    const minimapCanvas = document.getElementById('minimap-canvas');
+    const minimapCtx = minimapCanvas.getContext('2d');
+    
+    const wastedOverlay = document.getElementById('wasted-overlay');
+    const victoryOverlay = document.getElementById('victory-overlay');
+    const pauseOverlay = document.getElementById('pause-overlay');
+    
+    const restartBtn = document.getElementById('restart-btn');
+    const victoryRestartBtn = document.getElementById('victory-restart-btn');
+    const pauseOpenBtn = document.getElementById('pause-open-btn');
+    const daylightToggleBtn = document.getElementById('daylight-toggle-btn');
+    const saveBtn = document.getElementById('save-btn');
+    const resetSettingsBtn = document.getElementById('reset-settings-btn');
+    
+    const apkSlider = document.getElementById('apk-slider');
+    const apkCountDisplay = document.getElementById('apk-count-display');
+
+    const leftJoystickZone = document.getElementById('left-joystick-zone');
+    const leftJoystickKnob = document.getElementById('left-joystick-knob');
+    
+    const jumpBtn = document.getElementById('jump-btn');
+    const climbBtn = document.getElementById('climb-btn');
+    const webBtn = document.getElementById('web-btn');
+
+    let scene, camera, renderer, world;
+    let raycaster;
+    let dirLight, ambientLight;
+
+    // Spacing configuration: wider block spacing
+    const CITY_SIZE = 10; 
+    const BLOCK_SIZE = 75;
+    const ROAD_WIDTH = 55;
+    const TOTAL_BOUNDS = (CITY_SIZE * (BLOCK_SIZE + ROAD_WIDTH)) / 2 + 100;
+
+    let buildingMeshes = [];
+    let buildingBodies = [];
+    let climbableMeshes = [];
+    let blinkingLights = [];
+    let groundMesh, gridHelper, groundBody;
+    let spawnPoint = new THREE.Vector3(0, 15, 0);
+
+    // Cars setup
+    let cars = [];
+
+    // APK Collectibles & Settings
+    let apkCollectibles = [];
+    let configuredApkTarget = 30;
+    let totalApkCount = 30;
+    let collectedApkCount = 0;
+
+    // Day/Night State
+    let isNightMode = false;
+
+    let heroGroup, heroBody;
+    let heroVisualContainer;
+    let heroLimbs = {};
+    let spiderLogoMesh, spiderLogoMat;
+    let isGrounded = false;
+    let wasAirborne = false;
+    let isClimbing = false;
+    let isWasted = false;
+    let isGameWon = false;
+    let isPaused = false;
+    let climbNormal = new THREE.Vector3();
+    let walkCycle = 0;
+    let climbCycle = 0;
+    let currentSpeedMph = 0;
+
+    let isSwipeLooking = false;
+    let swipeTouchId = null;
+    let lastSwipeX = 0;
+    let lastSwipeY = 0;
+
+    let cameraYaw = 0;
+    let cameraPitch = 0.25;
+    const DEFAULT_PITCH = 0.25;
+
+    const web = {
+      attached: false,
+      targetPos: new THREE.Vector3(),
+      anchorBody: null,
+      constraint: null,
+      anchorMesh: null,
+      group: null,
+      coreMesh: null,
+      outlineMesh: null
+    };
+
+    const moveInput = { x: 0, y: 0 };
+    let leftTouchId = null;
+
+    let isJumpPressed = false;
+    let isClimbToggled = false;
+
+    let suitMat, redAntennaMat, eyeMat, apkBlueMat;
+    let playerMaterial, environmentMaterial;
+
+    function init() {
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x87ceeb); // Default day sky
+      scene.fog = new THREE.FogExp2(0x87ceeb, 0.0005);
+
+      camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 4000);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      container.appendChild(renderer.domElement);
+
+      raycaster = new THREE.Raycaster();
+
+      world = new CANNON.World();
+      world.gravity.set(0, -65, 0); 
+      world.broadphase = new CANNON.NaiveBroadphase();
+      world.solver.iterations = 20;
+
+      playerMaterial = new CANNON.Material('player');
+      environmentMaterial = new CANNON.Material('env');
+
+      world.addContactMaterial(new CANNON.ContactMaterial(playerMaterial, environmentMaterial, { friction: 0.0, restitution: 0.0 }));
+
+      ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+      scene.add(ambientLight);
+
+      dirLight = new THREE.DirectionalLight(0xfff5ea, 1.3);
+      dirLight.position.set(800, 1200, 500);
+      dirLight.castShadow = true;
+      dirLight.shadow.mapSize.width = 2048;
+      dirLight.shadow.mapSize.height = 2048;
+      dirLight.shadow.camera.far = 2500;
+      const d = 800;
+      dirLight.shadow.camera.left = -d; dirLight.shadow.camera.right = d;
+      dirLight.shadow.camera.top = d; dirLight.shadow.camera.bottom = -d;
+      scene.add(dirLight);
+
+      // Default Day Mode: White suit, black antennas, black eyes, black logo
+      suitMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, metalness: 0.1 });
+      redAntennaMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.2, metalness: 0.3 });
+      eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+      apkBlueMat = new THREE.MeshStandardMaterial({ color: 0x0055ff, roughness: 0.2, metalness: 0.8, emissive: 0x001155 });
+      
+      // Spiderman Logo Material
+      spiderLogoMat = new THREE.MeshStandardMaterial({
+        color: 0x000000,
+        roughness: 0.2,
+        metalness: 0.5,
+        emissive: 0x000000,
+        emissiveIntensity: 0.0
+      });
+
+      const groundShape = new CANNON.Plane();
+      groundBody = new CANNON.Body({ mass: 0, material: environmentMaterial });
+      groundBody.addShape(groundShape);
+      groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+      world.addBody(groundBody);
+
+      generateRandomCity();
+      createPlayer();
+      setupCars();
+
+      setupJoystick();
+      setupTouchControls();
+      setupSwipeLook();
+      setupPauseMenu();
+
+      window.addEventListener('resize', onWindowResize);
+
+      animate();
+    }
+
+    function toggleDaylight() {
+      isNightMode = !isNightMode;
+      
+      if (isNightMode) {
+        scene.background.setHex(0x060910);
+        scene.fog.color.setHex(0x060910);
+        ambientLight.intensity = 0.25;
+        dirLight.intensity = 0.3;
+        daylightToggleBtn.innerText = "NIGHT";
+        daylightToggleBtn.style.borderColor = "#0088ff";
+        daylightToggleBtn.style.color = "#0088ff";
+
+        // Night Mode Character Appearance (Black suit, red antennas, white eyes, glowing red logo)
+        suitMat.color.setHex(0x111111);
+        redAntennaMat.color.setHex(0xff0033);
+        eyeMat.color.setHex(0xffffff);
+        spiderLogoMat.color.setHex(0xff0033);
+        spiderLogoMat.emissive.setHex(0xff0033);
+        spiderLogoMat.emissiveIntensity = 1.2;
+      } else {
+        scene.background.setHex(0x87ceeb);
+        scene.fog.color.setHex(0x87ceeb);
+        ambientLight.intensity = 0.8;
+        dirLight.intensity = 1.3;
+        daylightToggleBtn.innerText = "DAY";
+        daylightToggleBtn.style.borderColor = "#ffaa00";
+        daylightToggleBtn.style.color = "#ffaa00";
+
+        // Day Mode Character Appearance (White suit, black antennas, black eyes, black logo)
+        suitMat.color.setHex(0xffffff);
+        redAntennaMat.color.setHex(0x111111);
+        eyeMat.color.setHex(0x000000);
+        spiderLogoMat.color.setHex(0x000000);
+        spiderLogoMat.emissive.setHex(0x000000);
+        spiderLogoMat.emissiveIntensity = 0.0;
+      }
+    }
+
+    function setupPauseMenu() {
+      apkSlider.addEventListener('input', (e) => {
+        configuredApkTarget = parseInt(e.target.value);
+        apkCountDisplay.innerText = configuredApkTarget;
+      });
+
+      pauseOpenBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (isWasted || isGameWon) return;
+        isPaused = true;
+        apkSlider.value = configuredApkTarget;
+        apkCountDisplay.innerText = configuredApkTarget;
+        pauseOverlay.style.display = 'flex';
+      });
+
+      daylightToggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleDaylight();
+      });
+
+      saveBtn.addEventListener('click', () => {
+        pauseOverlay.style.display = 'none';
+        isPaused = false;
+        respawnPlayer();
+      });
+
+      resetSettingsBtn.addEventListener('click', () => {
+        configuredApkTarget = 30;
+        apkSlider.value = 30;
+        apkCountDisplay.innerText = "30";
+      });
+
+      restartBtn.addEventListener('click', respawnPlayer);
+      victoryRestartBtn.addEventListener('click', respawnPlayer);
+    }
+
+    function generateRandomCity() {
+      buildingMeshes.forEach(mesh => scene.remove(mesh));
+      buildingBodies.forEach(body => world.remove(body));
+      buildingMeshes = [];
+      buildingBodies = [];
+      climbableMeshes = [];
+      blinkingLights = [];
+
+      apkCollectibles.forEach(item => scene.remove(item.mesh));
+      apkCollectibles = [];
+      collectedApkCount = 0;
+
+      if (groundMesh) scene.remove(groundMesh);
+      if (gridHelper) scene.remove(gridHelper);
+
+      const totalWidth = CITY_SIZE * (BLOCK_SIZE + ROAD_WIDTH);
+      
+      const groundGeo = new THREE.PlaneGeometry(totalWidth * 2, totalWidth * 2);
+      const groundMat = new THREE.MeshStandardMaterial({ color: 0x1a212b, roughness: 0.8 });
+      groundMesh = new THREE.Mesh(groundGeo, groundMat);
+      groundMesh.rotation.x = -Math.PI / 2;
+      groundMesh.receiveShadow = true;
+      scene.add(groundMesh);
+
+      gridHelper = new THREE.GridHelper(totalWidth * 2, 80, 0xff0033, 0x334455);
+      gridHelper.position.y = 0.05;
+      scene.add(gridHelper);
+
+      const centerIdxI = Math.floor(CITY_SIZE / 2);
+      const centerIdxJ = Math.floor(CITY_SIZE / 2);
+
+      // Randomly pick one grid location for the Mega Skyscraper (excluding spawn at center)
+      let megaI, megaJ;
+      do {
+        megaI = Math.floor(Math.random() * CITY_SIZE);
+        megaJ = Math.floor(Math.random() * CITY_SIZE);
+      } while (megaI === centerIdxI && megaJ === centerIdxJ);
+
+      let eligibleBuildings = [];
+
+      for (let i = 0; i < CITY_SIZE; i++) {
+        for (let j = 0; j < CITY_SIZE; j++) {
+          const x = (i - CITY_SIZE / 2) * (BLOCK_SIZE + ROAD_WIDTH);
+          const z = (j - CITY_SIZE / 2) * (BLOCK_SIZE + ROAD_WIDTH);
+
+          const isMegaSkyscraper = (i === megaI && j === megaJ);
+          const height = isMegaSkyscraper ? (490 * 2) : (110 + Math.random() * 380);
+          const width = BLOCK_SIZE;
+          const depth = BLOCK_SIZE;
+
+          const geo = new THREE.BoxGeometry(width, height, depth);
+          
+          let buildingColor;
+          if (isMegaSkyscraper) {
+            buildingColor = new THREE.Color(0x112233);
+          } else {
+            const randType = Math.random();
+            if (randType < 0.25) {
+              buildingColor = new THREE.Color().setHSL(0.06 + Math.random() * 0.04, 0.85, 0.45 + Math.random() * 0.15);
+            } else if (randType < 0.55) {
+              buildingColor = new THREE.Color().setHSL(0.1 + Math.random() * 0.05, 0.35, 0.40 + Math.random() * 0.20);
+            } else {
+              buildingColor = new THREE.Color().setHSL(0.55 + Math.random() * 0.1, 0.3, 0.35 + Math.random() * 0.20);
+            }
+          }
+
+          const mat = new THREE.MeshStandardMaterial({
+            color: buildingColor,
+            roughness: 0.3,
+            metalness: isMegaSkyscraper ? 0.7 : 0.3
+          });
+
+          const mesh = new THREE.Mesh(geo, mat);
+          mesh.position.set(x, height / 2, z);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          scene.add(mesh);
+
+          const windowGeo = new THREE.BoxGeometry(width + 0.2, height - 4, depth + 0.2);
+          const windowMat = new THREE.MeshBasicMaterial({
+            color: isMegaSkyscraper ? 0x00ffff : 0x80c0ff,
+            wireframe: true,
+            transparent: true,
+            opacity: isMegaSkyscraper ? 0.25 : 0.1
+          });
+          const windowMesh = new THREE.Mesh(windowGeo, windowMat);
+          mesh.add(windowMesh);
+
+          const shape = new CANNON.Box(new CANNON.Vec3(width / 2, height / 2, depth / 2));
+          const body = new CANNON.Body({ mass: 0, material: environmentMaterial });
+          body.addShape(shape);
+          body.position.set(x, height / 2, z);
+          world.addBody(body);
+
+          mesh.userData = { width, height, depth, body };
+          buildingMeshes.push(mesh);
+          buildingBodies.push(body);
+          climbableMeshes.push(mesh);
+
+          if (isMegaSkyscraper) {
+            const antennaHeight = 120;
+            const antennaRadius = 1.2;
+
+            const antGeo = new THREE.CylinderGeometry(antennaRadius * 0.3, antennaRadius, antennaHeight, 12);
+            const antMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.9, roughness: 0.2 });
+            const antennaMesh = new THREE.Mesh(antGeo, antMat);
+            antennaMesh.position.set(x, height + antennaHeight / 2, z);
+            antennaMesh.castShadow = true;
+            antennaMesh.receiveShadow = true;
+            scene.add(antennaMesh);
+
+            const antShape = new CANNON.Cylinder(antennaRadius, antennaRadius, antennaHeight, 12);
+            const antBody = new CANNON.Body({ mass: 0, material: environmentMaterial });
+            const q = new CANNON.Quaternion();
+            q.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), Math.PI / 2);
+            antBody.addShape(antShape, new CANNON.Vec3(0, 0, 0), q);
+            antBody.position.set(x, height + antennaHeight / 2, z);
+            world.addBody(antBody);
+
+            antennaMesh.userData = { width: antennaRadius * 2, height: antennaHeight, depth: antennaRadius * 2, body: antBody };
+            buildingMeshes.push(antennaMesh);
+            buildingBodies.push(antBody);
+            climbableMeshes.push(antennaMesh);
+
+            const beaconGeo = new THREE.SphereGeometry(2.5, 16, 16);
+            const beaconMat = new THREE.MeshStandardMaterial({
+              color: 0xff0000,
+              emissive: 0xff0000,
+              emissiveIntensity: 3.0,
+              roughness: 0.1
+            });
+            const beaconMesh = new THREE.Mesh(beaconGeo, beaconMat);
+            beaconMesh.position.set(x, height + antennaHeight + 1.2, z);
+            scene.add(beaconMesh);
+
+            const beaconLight = new THREE.PointLight(0xff0000, 5, 250);
+            beaconLight.position.set(x, height + antennaHeight + 1.2, z);
+            scene.add(beaconLight);
+
+            blinkingLights.push({ mesh: beaconMesh, light: beaconLight, mat: beaconMat });
+          }
+
+          if (i === centerIdxI && j === centerIdxJ) {
+            spawnPoint.set(x, height + 5, z);
+          } else {
+            eligibleBuildings.push({ x, y: height + 3.5, z });
+          }
+        }
+      }
+
+      eligibleBuildings.sort(() => Math.random() - 0.5);
+      const spawnTargetCount = Math.min(configuredApkTarget, eligibleBuildings.length);
+      totalApkCount = spawnTargetCount;
+
+      for (let k = 0; k < spawnTargetCount; k++) {
+        const b = eligibleBuildings[k];
+        const apkMesh = createApk3DLogo();
+        apkMesh.position.set(b.x, b.y, b.z);
+        scene.add(apkMesh);
+
+        apkCollectibles.push({
+          mesh: apkMesh,
+          pos: new THREE.Vector3(b.x, b.y, b.z),
+          baseY: b.y,
+          collected: false
+        });
+      }
+
+      apkEl.innerText = `${collectedApkCount}/${totalApkCount}`;
+    }
+
+    function createApk3DLogo() {
+      const group = new THREE.Group();
+      
+      const octGeo = new THREE.OctahedronGeometry(2.5, 0);
+      const octMesh = new THREE.Mesh(octGeo, apkBlueMat);
+      group.add(octMesh);
+
+      const coreGeo = new THREE.SphereGeometry(1.2, 12, 12);
+      const coreMat = new THREE.MeshBasicMaterial({ color: 0xff0033 });
+      const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+      group.add(coreMesh);
+
+      return group;
+    }
+
+    function setupCars() {
+      cars.forEach(car => scene.remove(car.mesh));
+      cars = [];
+
+      const carColors = [0xff3333, 0x3388ff, 0xffff33, 0x33cc66, 0xffffff, 0xaa33ff];
+      const roadSpacing = BLOCK_SIZE + ROAD_WIDTH;
+      const numRoads = CITY_SIZE - 1;
+
+      // Spawn significantly larger cars along grid streets
+      for (let i = 0; i < 28; i++) {
+        const isHorizontal = Math.random() > 0.5;
+        const lineIndex = Math.floor(Math.random() * numRoads) - CITY_SIZE / 2 + 1;
+        
+        const carGroup = new THREE.Group();
+        
+        // Scaled up Car Body (Width 4.5, Height 2.2, Length 9.0)
+        const bodyGeo = new THREE.BoxGeometry(4.5, 2.2, 9.0);
+        const carMat = new THREE.MeshStandardMaterial({
+          color: carColors[Math.floor(Math.random() * carColors.length)],
+          roughness: 0.2,
+          metalness: 0.6
+        });
+        const bodyMesh = new THREE.Mesh(bodyGeo, carMat);
+        bodyMesh.position.y = 1.5;
+        bodyMesh.castShadow = true;
+        carGroup.add(bodyMesh);
+
+        // Scaled up Roof
+        const cabinGeo = new THREE.BoxGeometry(3.8, 1.7, 4.5);
+        const cabinMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.1 });
+        const cabinMesh = new THREE.Mesh(cabinGeo, cabinMat);
+        cabinMesh.position.set(0, 3.25, -0.4);
+        carGroup.add(cabinMesh);
+
+        // Scaled up Headlights
+        const lightGeo = new THREE.BoxGeometry(1.0, 0.45, 0.2);
+        const lightMat = new THREE.MeshBasicMaterial({ color: 0xffffaa });
+        const h1 = new THREE.Mesh(lightGeo, lightMat);
+        h1.position.set(1.4, 1.5, 4.51);
+        const h2 = h1.clone();
+        h2.position.x = -1.4;
+        carGroup.add(h1, h2);
+
+        scene.add(carGroup);
+
+        const speed = 12 + Math.random() * 18;
+        const dirSign = Math.random() > 0.5 ? 1 : -1;
+
+        let posX = 0, posZ = 0;
+        if (isHorizontal) {
+          posZ = lineIndex * roadSpacing - roadSpacing / 2;
+          posX = (Math.random() - 0.5) * TOTAL_BOUNDS * 1.5;
+          carGroup.rotation.y = dirSign > 0 ? Math.PI / 2 : -Math.PI / 2;
+        } else {
+          posX = lineIndex * roadSpacing - roadSpacing / 2;
+          posZ = (Math.random() - 0.5) * TOTAL_BOUNDS * 1.5;
+          carGroup.rotation.y = dirSign > 0 ? 0 : Math.PI;
+        }
+
+        cars.push({
+          mesh: carGroup,
+          isHorizontal: isHorizontal,
+          dir: dirSign,
+          speed: speed,
+          roadOffset: isHorizontal ? posZ : posX
+        });
+
+        carGroup.position.set(posX, 0, posZ);
+      }
+    }
+
+    function updateCars(dt) {
+      const boundLimit = TOTAL_BOUNDS * 1.2;
+      cars.forEach(car => {
+        if (car.isHorizontal) {
+          car.mesh.position.x += car.speed * car.dir * dt;
+          if (Math.abs(car.mesh.position.x) > boundLimit) {
+            car.mesh.position.x = -car.dir * boundLimit;
+          }
+        } else {
+          car.mesh.position.z += car.speed * car.dir * dt;
+          if (Math.abs(car.mesh.position.z) > boundLimit) {
+            car.mesh.position.z = -car.dir * boundLimit;
+          }
+        }
+      });
+    }
+
+    function createPlayer() {
+      heroGroup = new THREE.Group();
+
+      const radius = 0.9;
+      heroBody = new CANNON.Body({
+        mass: 5,
+        shape: new CANNON.Sphere(radius),
+        material: playerMaterial,
+        linearDamping: 0.0,
+        angularDamping: 0.01
+      });
+      heroBody.position.copy(spawnPoint);
+      world.addBody(heroBody);
+
+      heroVisualContainer = new THREE.Group();
+      heroGroup.add(heroVisualContainer);
+
+      const bodyGeo = new THREE.CylinderGeometry(0.65, 0.65, 1.0, 16);
+      const bodyMesh = new THREE.Mesh(bodyGeo, suitMat);
+      bodyMesh.position.y = 0.5;
+      bodyMesh.castShadow = true;
+      heroVisualContainer.add(bodyMesh);
+
+      // Back Glowing Spiderman Emblem/Logo
+      spiderLogoMesh = createSpidermanLogoMesh();
+      spiderLogoMesh.position.set(0, 0.55, -0.66);
+      spiderLogoMesh.rotation.y = Math.PI;
+      heroVisualContainer.add(spiderLogoMesh);
+
+      const headGeo = new THREE.SphereGeometry(0.65, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+      const headMesh = new THREE.Mesh(headGeo, suitMat);
+      headMesh.position.y = 1.02;
+      headMesh.castShadow = true;
+      heroVisualContainer.add(headMesh);
+
+      const antGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.35, 8);
+      const lAntenna = new THREE.Mesh(antGeo, redAntennaMat);
+      lAntenna.position.set(0.2, 1.55, 0);
+      lAntenna.rotation.z = -Math.PI / 6;
+      const rAntenna = new THREE.Mesh(antGeo, redAntennaMat);
+      rAntenna.position.set(-0.2, 1.55, 0);
+      rAntenna.rotation.z = Math.PI / 6;
+      heroVisualContainer.add(lAntenna, rAntenna);
+
+      const eyeGeo = new THREE.SphereGeometry(0.08, 8, 8);
+      const lEye = new THREE.Mesh(eyeGeo, eyeMat);
+      lEye.position.set(0.22, 1.25, 0.55);
+      const rEye = lEye.clone();
+      rEye.position.x = -0.22;
+      heroVisualContainer.add(lEye, rEye);
+
+      const limbGeo = new THREE.CylinderGeometry(0.14, 0.14, 0.7, 12);
+      heroLimbs.lLeg = new THREE.Mesh(limbGeo, suitMat);
+      heroLimbs.lLeg.position.set(0.3, 0.15, 0);
+      
+      heroLimbs.rLeg = new THREE.Mesh(limbGeo, suitMat);
+      heroLimbs.rLeg.position.set(-0.3, 0.15, 0);
+
+      heroLimbs.lArm = new THREE.Mesh(limbGeo, suitMat);
+      heroLimbs.lArm.position.set(0.85, 0.6, 0);
+
+      heroLimbs.rArm = new THREE.Mesh(limbGeo, suitMat);
+      heroLimbs.rArm.position.set(-0.85, 0.6, 0);
+
+      Object.values(heroLimbs).forEach(l => heroVisualContainer.add(l));
+      scene.add(heroGroup);
+    }
+
+    function createSpidermanLogoMesh() {
+      const logoGroup = new THREE.Group();
+
+      const coreGeo = new THREE.BoxGeometry(0.22, 0.35, 0.04);
+      const coreMesh = new THREE.Mesh(coreGeo, spiderLogoMat);
+      logoGroup.add(coreMesh);
+
+      const headGeo = new THREE.SphereGeometry(0.08, 8, 8);
+      const headMesh = new THREE.Mesh(headGeo, spiderLogoMat);
+      headMesh.position.y = 0.22;
+      logoGroup.add(headMesh);
+
+      const legGeo = new THREE.BoxGeometry(0.28, 0.04, 0.03);
+
+      for (let i = 0; i < 4; i++) {
+        const leftLeg = new THREE.Mesh(legGeo, spiderLogoMat);
+        leftLeg.position.set(0.18, 0.12 - i * 0.08, 0);
+        leftLeg.rotation.z = (i < 2 ? 1 : -1) * (0.3 + i * 0.15);
+
+        const rightLeg = new THREE.Mesh(legGeo, spiderLogoMat);
+        rightLeg.position.set(-0.18, 0.12 - i * 0.08, 0);
+        rightLeg.rotation.z = (i < 2 ? -1 : 1) * (0.3 + i * 0.15);
+
+        logoGroup.add(leftLeg, rightLeg);
+      }
+
+      return logoGroup;
+    }
+
+    function triggerWasted() {
+      if (isWasted || isGameWon) return;
+      isWasted = true;
+      detachWeb(false);
+
+      heroVisualContainer.rotation.x = Math.PI / 2;
+      heroVisualContainer.position.y = -0.5;
+      heroLimbs.lArm.rotation.set(Math.PI / 2, 0, Math.PI / 3);
+      heroLimbs.rArm.rotation.set(-Math.PI / 2, 0, -Math.PI / 3);
+      heroLimbs.lLeg.rotation.set(-Math.PI / 4, 0, 0);
+      heroLimbs.rLeg.rotation.set(Math.PI / 4, 0, 0);
+
+      wastedOverlay.style.display = 'flex';
+    }
+
+    function triggerVictory() {
+      if (isGameWon || isWasted) return;
+      isGameWon = true;
+      detachWeb(false);
+      victoryOverlay.style.display = 'flex';
+    }
+
+    function respawnPlayer() {
+      detachWeb(false);
+      generateRandomCity();
+      setupCars();
+
+      heroBody.position.copy(spawnPoint);
+      heroBody.velocity.set(0, 0, 0);
+      heroBody.angularVelocity.set(0, 0, 0);
+      
+      isClimbToggled = false;
+      isWasted = false;
+      isGameWon = false;
+      isPaused = false;
+      wasAirborne = false;
+
+      wastedOverlay.style.display = 'none';
+      victoryOverlay.style.display = 'none';
+      pauseOverlay.style.display = 'none';
+
+      heroVisualContainer.rotation.set(0, 0, 0);
+      heroVisualContainer.position.set(0, 0, 0);
+      Object.values(heroLimbs).forEach(l => l.rotation.set(0, 0, 0));
+
+      climbBtn.classList.remove('active');
+    }
+
+    function setupJoystick() {
+      function handleMove(clientX, clientY) {
+        const currentRect = leftJoystickZone.getBoundingClientRect();
+        const center = { x: currentRect.left + currentRect.width / 2, y: currentRect.top + currentRect.height / 2 };
+
+        const dx = clientX - center.x;
+        const dy = clientY - center.y;
+        const dist = Math.hypot(dx, dy);
+        const maxDist = 45;
+
+        const angle = Math.atan2(dy, dx);
+        const clampedDist = Math.min(dist, maxDist);
+
+        const knobX = Math.cos(angle) * clampedDist;
+        const knobY = Math.sin(angle) * clampedDist;
+
+        leftJoystickKnob.style.transform = `translate(${knobX}px, ${knobY}px)`;
+
+        moveInput.x = knobX / maxDist;
+        moveInput.y = knobY / maxDist;
+      }
+
+      window.addEventListener('pointerdown', (e) => {
+        const currentRect = leftJoystickZone.getBoundingClientRect();
+        if (leftTouchId === null &&
+            e.clientX >= currentRect.left && e.clientX <= currentRect.right &&
+            e.clientY >= currentRect.top && e.clientY <= currentRect.bottom) {
+          leftTouchId = e.pointerId;
+          handleMove(e.clientX, e.clientY);
+        }
+      });
+
+      window.addEventListener('pointermove', (e) => {
+        if (e.pointerId === leftTouchId) {
+          handleMove(e.clientX, e.clientY);
+        }
+      });
+
+      const reset = (e) => {
+        if (e.pointerId === leftTouchId) {
+          leftTouchId = null;
+          leftJoystickKnob.style.transform = `translate(0px, 0px)`;
+          moveInput.x = 0;
+          moveInput.y = 0;
+        }
+      };
+
+      window.addEventListener('pointerup', reset);
+      window.addEventListener('pointercancel', reset);
+    }
+
+    function setupSwipeLook() {
+      window.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('.action-btn') || e.target.closest('.joystick-zone') || e.target.closest('#minimap-container') || e.target.closest('.top-controls') || isWasted || isGameWon || isPaused) {
+          return;
+        }
+        isSwipeLooking = true;
+        swipeTouchId = e.pointerId;
+        lastSwipeX = e.clientX;
+        lastSwipeY = e.clientY;
+      });
+
+      window.addEventListener('pointermove', (e) => {
+        if (!isSwipeLooking || e.pointerId !== swipeTouchId || isWasted || isGameWon || isPaused) return;
+
+        const deltaX = e.clientX - lastSwipeX;
+        const deltaY = e.clientY - lastSwipeY;
+
+        cameraYaw -= deltaX * 0.005;
+        cameraPitch = Math.max(-0.2, Math.min(Math.PI / 2.5, cameraPitch + deltaY * 0.005));
+
+        lastSwipeX = e.clientX;
+        lastSwipeY = e.clientY;
+      });
+
+      const endSwipe = (e) => {
+        if (e.pointerId === swipeTouchId) {
+          isSwipeLooking = false;
+          swipeTouchId = null;
+        }
+      };
+
+      window.addEventListener('pointerup', endSwipe);
+      window.addEventListener('pointercancel', endSwipe);
+    }
+
+    function setupTouchControls() {
+      jumpBtn.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        if (!isWasted && !isGameWon && !isPaused) isJumpPressed = true;
+      });
+      jumpBtn.addEventListener('pointerup', () => isJumpPressed = false);
+
+      climbBtn.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        if (isWasted || isGameWon || isPaused) return;
+        isClimbToggled = !isClimbToggled;
+        climbBtn.classList.toggle('active', isClimbToggled);
+      });
+
+      webBtn.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        if (isWasted || isGameWon || isPaused) return;
+        if (web.attached) {
+          detachWeb(true);
+        } else {
+          triggerCameraLockedWebSling();
+        }
+      });
+    }
+
+    function triggerCameraLockedWebSling() {
+      const heroPos = new THREE.Vector3(heroBody.position.x, heroBody.position.y, heroBody.position.z);
+      
+      const forwardDir = new THREE.Vector3(
+        -Math.sin(cameraYaw),
+        0,
+        -Math.cos(cameraYaw)
+      ).normalize();
+
+      const forwardDistance = 85;
+      const upwardHeight = 80;
+
+      const artificialAnchor = heroPos.clone()
+        .add(forwardDir.clone().multiplyScalar(forwardDistance))
+        .add(new THREE.Vector3(0, upwardHeight, 0));
+
+      attachWeb(artificialAnchor);
+    }
+
+    function attachWeb(targetPoint) {
+      detachWeb(false);
+
+      web.targetPos.copy(targetPoint);
+      
+      web.anchorBody = new CANNON.Body({
+        mass: 0,
+        position: new CANNON.Vec3(targetPoint.x, targetPoint.y, targetPoint.z)
+      });
+      world.addBody(web.anchorBody);
+
+      const p1 = new CANNON.Vec3(heroBody.position.x, heroBody.position.y, heroBody.position.z);
+      const ropeLength = p1.distanceTo(web.anchorBody.position);
+
+      web.constraint = new CANNON.DistanceConstraint(heroBody, web.anchorBody, ropeLength);
+      world.addConstraint(web.constraint);
+      
+      web.attached = true;
+      webBtn.classList.add('active');
+
+      const cameraForward = new THREE.Vector3(-Math.sin(cameraYaw), -0.2, -Math.cos(cameraYaw)).normalize();
+      const launchSpeed = Math.max(heroBody.velocity.length() * 0.6, 55);
+      heroBody.applyImpulse(new CANNON.Vec3(cameraForward.x * launchSpeed, cameraForward.y * launchSpeed, cameraForward.z * launchSpeed), heroBody.position);
+
+      createWebVisual(targetPoint);
+    }
+
+    function detachWeb(applyBoost = false) {
+      if (web.constraint) {
+        world.removeConstraint(web.constraint);
+        web.constraint = null;
+      }
+      if (web.anchorBody) {
+        world.removeBody(web.anchorBody);
+        web.anchorBody = null;
+      }
+
+      if (web.attached && applyBoost) {
+        const forwardDir = new THREE.Vector3(-Math.sin(cameraYaw), 0.55, -Math.cos(cameraYaw)).normalize();
+        const currentSpeed = heroBody.velocity.length();
+        const boostSpeed = Math.max(currentSpeed * 0.75, 55);
+
+        heroBody.applyImpulse(
+          new CANNON.Vec3(forwardDir.x * boostSpeed, forwardDir.y * boostSpeed + 35, forwardDir.z * boostSpeed),
+          heroBody.position
+        );
+      }
+
+      if (web.anchorMesh) scene.remove(web.anchorMesh);
+      if (web.group) scene.remove(web.group);
+
+      web.anchorMesh = null;
+      web.group = null;
+      web.attached = false;
+      webBtn.classList.remove('active');
+    }
+
+    function createWebVisual(targetPoint) {
+      web.group = new THREE.Group();
+      const coreGeo = new THREE.CylinderGeometry(0.02, 0.02, 1, 8);
+      const coreMat = new THREE.MeshBasicMaterial({ color: 0xa4c639 });
+      web.coreMesh = new THREE.Mesh(coreGeo, coreMat);
+
+      const outlineGeo = new THREE.CylinderGeometry(0.04, 0.04, 1, 8);
+      const outlineMat = new THREE.MeshBasicMaterial({ color: 0x769618 });
+      web.outlineMesh = new THREE.Mesh(outlineGeo, outlineMat);
+
+      web.group.add(web.outlineMesh, web.coreMesh);
+      scene.add(web.group);
+    }
+
+    function updateWebVisuals() {
+      if (!web.attached || !web.anchorBody || !web.group) return;
+
+      const p1 = new THREE.Vector3(heroBody.position.x, heroBody.position.y, heroBody.position.z);
+      const p2 = web.anchorBody.position;
+
+      const dist = p1.distanceTo(p2);
+      const midPoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+
+      web.group.position.copy(midPoint);
+      web.coreMesh.scale.set(1, dist, 1);
+      web.outlineMesh.scale.set(1, dist, 1);
+
+      const direction = new THREE.Vector3().subVectors(p2, p1).normalize();
+      const axis = new THREE.Vector3(0, 1, 0);
+      web.group.quaternion.setFromUnitVectors(axis, direction);
+    }
+
+    function updateApkCollectibles() {
+      const heroPos = new THREE.Vector3(heroBody.position.x, heroBody.position.y, heroBody.position.z);
+      const time = Date.now() * 0.003;
+
+      apkCollectibles.forEach(item => {
+        if (item.collected) return;
+
+        item.mesh.rotation.y += 0.03;
+        item.mesh.rotation.x = Math.sin(time) * 0.2;
+        item.mesh.position.y = item.baseY + Math.sin(time * 2) * 0.8;
+
+        const dist = heroPos.distanceTo(item.mesh.position);
+        if (dist < 4.5) {
+          item.collected = true;
+          scene.remove(item.mesh);
+          collectedApkCount++;
+          apkEl.innerText = `${collectedApkCount}/${totalApkCount}`;
+
+          if (collectedApkCount >= totalApkCount && totalApkCount > 0) {
+            triggerVictory();
+          }
+        }
+      });
+    }
+
+    function updateBlinkingLights(time) {
+      const isVisible = Math.floor(time * 4) % 2 === 0;
+      blinkingLights.forEach(item => {
+        item.light.intensity = isVisible ? 6 : 0;
+        item.mat.emissiveIntensity = isVisible ? 3.5 : 0.2;
+      });
+    }
+
+    function updateMinimap() {
+      const w = minimapCanvas.width;
+      const h = minimapCanvas.height;
+      const center = w / 2;
+      const scale = 0.15;
+
+      minimapCtx.clearRect(0, 0, w, h);
+
+      const trackTargetPos = heroBody.position;
+
+      minimapCtx.fillStyle = '#182433';
+      minimapCtx.strokeStyle = '#0055ff';
+      minimapCtx.lineWidth = 1;
+
+      buildingMeshes.forEach(b => {
+        const relX = (b.position.x - trackTargetPos.x) * scale;
+        const relZ = (b.position.z - trackTargetPos.z) * scale;
+
+        const bw = b.userData.width * scale;
+        const bd = b.userData.depth * scale;
+
+        const mapX = center + relX - bw / 2;
+        const mapY = center + relZ - bd / 2;
+
+        if (mapX + bw > 0 && mapX < w && mapY + bd > 0 && mapY < h) {
+          minimapCtx.fillRect(mapX, mapY, bw, bd);
+          minimapCtx.strokeRect(mapX, mapY, bw, bd);
+        }
+      });
+
+      minimapCtx.fillStyle = '#ffff00';
+      cars.forEach(car => {
+        const relX = (car.mesh.position.x - trackTargetPos.x) * scale;
+        const relZ = (car.mesh.position.z - trackTargetPos.z) * scale;
+        const mapX = center + relX;
+        const mapY = center + relZ;
+
+        if (mapX > 0 && mapX < w && mapY > 0 && mapY < h) {
+          minimapCtx.fillRect(mapX - 2.5, mapY - 2.5, 5, 5);
+        }
+      });
+
+      minimapCtx.fillStyle = '#0055ff';
+      apkCollectibles.forEach(item => {
+        if (item.collected) return;
+        const relX = (item.pos.x - trackTargetPos.x) * scale;
+        const relZ = (item.pos.z - trackTargetPos.z) * scale;
+        
+        const mapX = center + relX;
+        const mapY = center + relZ;
+
+        if (mapX > 0 && mapX < w && mapY > 0 && mapY < h) {
+          minimapCtx.beginPath();
+          minimapCtx.arc(mapX, mapY, 3.5, 0, Math.PI * 2);
+          minimapCtx.fill();
+        }
+      });
+
+      if (web.attached && web.anchorBody) {
+        const relX = (web.anchorBody.position.x - trackTargetPos.x) * scale;
+        const relZ = (web.anchorBody.position.z - trackTargetPos.z) * scale;
+        minimapCtx.fillStyle = '#ffffff';
+        minimapCtx.beginPath();
+        minimapCtx.arc(center + relX, center + relZ, 3, 0, Math.PI * 2);
+        minimapCtx.fill();
+      }
+
+      minimapCtx.fillStyle = '#ff0033';
+      minimapCtx.beginPath();
+      minimapCtx.arc(center, center, 5, 0, Math.PI * 2);
+      minimapCtx.fill();
+
+      const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(heroGroup.quaternion);
+      minimapCtx.strokeStyle = '#ff0033';
+      minimapCtx.lineWidth = 2;
+      minimapCtx.beginPath();
+      minimapCtx.moveTo(center, center);
+      minimapCtx.lineTo(center + forward.x * 12, center + forward.z * 12);
+      minimapCtx.stroke();
+    }
+
+    function applyWebPhysics() {
+      if (!web.attached || !web.anchorBody) return;
+
+      const pPos = heroBody.position;
+      const cameraFwd = new THREE.Vector3(-Math.sin(cameraYaw), 0, -Math.cos(cameraYaw));
+      const sideDir = new THREE.Vector3(-Math.cos(cameraYaw), 0, Math.sin(cameraYaw));
+      
+      const vy = heroBody.velocity.y;
+
+      if (vy < 0) {
+        heroBody.applyForce(new CANNON.Vec3(cameraFwd.x * 75, -25, cameraFwd.z * 75), pPos);
+      } else {
+        heroBody.applyForce(new CANNON.Vec3(cameraFwd.x * 85, 65, cameraFwd.z * 85), pPos);
+      }
+
+      if (Math.abs(moveInput.x) > 0.05) {
+        heroBody.applyForce(new CANNON.Vec3(sideDir.x * moveInput.x * 65, 0, sideDir.z * moveInput.x * 65), pPos);
+      }
+    }
+
+    function updatePlayer() {
+      if (isWasted || isGameWon || isPaused) return;
+
+      const pos = heroBody.position;
+
+      if (Math.abs(pos.x) > TOTAL_BOUNDS || Math.abs(pos.z) > TOTAL_BOUNDS || pos.y < -20) {
+        triggerWasted();
+        return;
+      }
+
+      const speedUnits = heroBody.velocity.length();
+      currentSpeedMph = speedUnits * 2.237;
+      mphEl.innerText = Math.floor(currentSpeedMph);
+
+      if (!isSwipeLooking) {
+        cameraPitch += (DEFAULT_PITCH - cameraPitch) * 0.08;
+      }
+
+      raycaster.set(new THREE.Vector3(pos.x, pos.y, pos.z), new THREE.Vector3(0, -1, 0));
+      const groundHits = raycaster.intersectObjects([groundMesh, ...climbableMeshes], false);
+      
+      const distToSurface = (groundHits.length > 0) ? groundHits[0].distance : pos.y;
+      isGrounded = distToSurface <= 1.05;
+
+      if (isGrounded && pos.y <= 1.2) {
+        triggerWasted();
+        return;
+      }
+
+      if (isGrounded) {
+        if (wasAirborne) {
+          heroBody.velocity.x *= 0.15;
+          heroBody.velocity.z *= 0.15;
+          wasAirborne = false;
+        } else {
+          heroBody.velocity.x *= 0.82;
+          heroBody.velocity.z *= 0.82;
+        }
+      } else {
+        wasAirborne = true;
+      }
+
+      let nearWall = false;
+      const rayDirections = [
+        new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0),
+        new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1)
+      ];
+
+      for (let dir of rayDirections) {
+        raycaster.set(new THREE.Vector3(pos.x, pos.y, pos.z), dir);
+        const hits = raycaster.intersectObjects(climbableMeshes, false);
+        if (hits.length > 0 && hits[0].distance < 1.8) {
+          nearWall = true;
+          climbNormal.copy(hits[0].face.normal);
+          break;
+        }
+      }
+
+      climbBtn.style.display = nearWall ? 'flex' : 'none';
+
+      if (nearWall && isClimbToggled) {
+        isClimbing = true;
+        detachWeb(false);
+        world.gravity.set(0, 0, 0);
+
+        const climbSpeed = 22;
+        heroBody.velocity.y = -moveInput.y * climbSpeed;
+        
+        const sideVector = new THREE.Vector3(0, 1, 0).cross(climbNormal);
+        heroBody.velocity.x = sideVector.x * moveInput.x * climbSpeed;
+        heroBody.velocity.z = sideVector.z * moveInput.x * climbSpeed;
+
+        const targetRotation = Math.atan2(-climbNormal.x, -climbNormal.z);
+        heroGroup.rotation.set(0, targetRotation, 0);
+        heroGroup.rotation.x = Math.PI / 4;
+
+        if (Math.abs(moveInput.x) > 0.05 || Math.abs(moveInput.y) > 0.05) {
+          climbCycle += 0.4;
+          heroLimbs.lArm.rotation.x = Math.sin(climbCycle) * 0.9;
+          heroLimbs.rArm.rotation.x = -Math.sin(climbCycle) * 0.9;
+          heroLimbs.lLeg.rotation.x = -Math.sin(climbCycle) * 0.9;
+          heroLimbs.rLeg.rotation.x = Math.sin(climbCycle) * 0.9;
+          
+          heroLimbs.lArm.rotation.z = Math.PI / 6;
+          heroLimbs.rArm.rotation.z = -Math.PI / 6;
+        } else {
+          heroLimbs.lArm.rotation.set(0, 0, Math.PI / 6);
+          heroLimbs.rArm.rotation.set(0, 0, -Math.PI / 6);
+          heroLimbs.lLeg.rotation.set(0, 0, 0);
+          heroLimbs.rLeg.rotation.set(0, 0, 0);
+        }
+
+      } else {
+        isClimbing = false;
+        world.gravity.set(0, -65, 0);
+
+        applyWebPhysics();
+
+        if (web.attached) {
+          heroGroup.rotation.set(0, cameraYaw + Math.PI, 0);
+        } else if (Math.abs(moveInput.x) > 0.05 || Math.abs(moveInput.y) > 0.05) {
+          const moveDir = new THREE.Vector3(
+            moveInput.x * Math.cos(cameraYaw) + moveInput.y * Math.sin(cameraYaw),
+            0,
+            -moveInput.x * Math.sin(cameraYaw) + moveInput.y * Math.cos(cameraYaw)
+          ).normalize();
+
+          const moveForce = isGrounded ? 1800 : 85;
+          heroBody.applyForce(new CANNON.Vec3(moveDir.x * moveForce, 0, moveDir.z * moveForce), pos);
+
+          const targetAngle = Math.atan2(moveDir.x, moveDir.z);
+          heroGroup.rotation.set(0, targetAngle, 0);
+
+          if (isGrounded) {
+            walkCycle += 0.85;
+            heroLimbs.lLeg.rotation.x = Math.sin(walkCycle) * 0.9;
+            heroLimbs.rLeg.rotation.x = -Math.sin(walkCycle) * 0.9;
+            heroLimbs.lArm.rotation.x = -Math.sin(walkCycle) * 0.9;
+            heroLimbs.rArm.rotation.x = Math.sin(walkCycle) * 0.9;
+          }
+        } else {
+          heroGroup.rotation.set(0, cameraYaw + Math.PI, 0);
+          if (isGrounded) {
+            heroLimbs.lLeg.rotation.x = 0;
+            heroLimbs.rLeg.rotation.x = 0;
+            heroLimbs.lArm.rotation.x = 0;
+            heroLimbs.rArm.rotation.x = 0;
+          }
+        }
+
+        if (isJumpPressed) {
+          if (nearWall) {
+            heroBody.velocity.y = 35;
+            heroBody.velocity.x += climbNormal.x * 22;
+            heroBody.velocity.z += climbNormal.z * 22;
+            isClimbToggled = false;
+            climbBtn.classList.remove('active');
+          } else if (isGrounded) {
+            heroBody.velocity.y = 28;
+          } else if (web.attached) {
+            detachWeb(true);
+          }
+          isJumpPressed = false;
+        }
+      }
+
+      heroGroup.position.copy(heroBody.position);
+
+      altEl.innerText = Math.max(0, Math.floor(pos.y - 0.9));
+      modeEl.innerText = web.attached ? "SWINGING" : (isClimbing ? "CLIMBING" : "ROOFTOP");
+    }
+
+    function updateOverviewCamera() {
+      const targetPos = heroGroup.position;
+      
+      const followDist = web.attached ? 42 : 32;
+      
+      const camOffset = new THREE.Vector3(
+        Math.sin(cameraYaw) * Math.cos(cameraPitch) * followDist,
+        Math.sin(cameraPitch) * followDist + 8.0,
+        Math.cos(cameraYaw) * Math.cos(cameraPitch) * followDist
+      );
+
+      let idealCamPos = new THREE.Vector3().copy(targetPos).add(camOffset);
+
+      if (idealCamPos.y < 2.0) {
+        idealCamPos.y = 2.0;
+      }
+
+      const camDir = idealCamPos.clone().sub(targetPos).normalize();
+      raycaster.set(targetPos, camDir);
+      const hits = raycaster.intersectObjects(buildingMeshes, false);
+
+      let lookAtTarget = targetPos.clone().add(new THREE.Vector3(0, -3.5, 0));
+
+      if (hits.length > 0 && hits[0].distance < followDist) {
+        idealCamPos.copy(targetPos).add(camDir.multiplyScalar(hits[0].distance * 0.85));
+      }
+
+      camera.position.lerp(idealCamPos, 0.2);
+      camera.lookAt(lookAtTarget);
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    let lastTime = performance.now();
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const now = performance.now();
+      const dt = (now - lastTime) / 1000;
+      lastTime = now;
+
+      if (!isWasted && !isGameWon && !isPaused) {
+        world.step(1 / 60);
+        updateCars(dt);
+      }
+
+      updatePlayer();
+      updateApkCollectibles();
+      updateBlinkingLights(now / 1000);
+      updateWebVisuals();
+      updateOverviewCamera();
+      updateMinimap();
+
+      renderer.render(scene, camera);
+    }
+
+    window.onload = init;
+  </script>
+</body>
+</html>
